@@ -1,0 +1,10 @@
+version: "0.1"
+
+services:
+  minecraft-honeypot:
+    build:
+      context: https://github.com/JakobKjellberg02/minecraft_tcp_honeypot.git
+      dockerfile: Dockerfile
+    ports:
+      - "25565:25565"
+    restart: unless-stopped

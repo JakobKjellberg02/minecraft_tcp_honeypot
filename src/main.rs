@@ -112,7 +112,7 @@ fn handle_connection(mut stream : TcpStream) {
 }
 
 fn main() {
-    let listener_result = TcpListener::bind("127.0.0.1:25565");
+    let listener_result = TcpListener::bind("0.0.0.0:25565");
     let listener: TcpListener = match listener_result {
         Ok(tcp) => tcp,
         Err(error) => { panic!("Problem establishing TCP Listener: {error:?}") }
