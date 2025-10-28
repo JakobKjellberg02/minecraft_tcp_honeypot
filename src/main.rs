@@ -1,9 +1,33 @@
 use std::{io::{Cursor, Read, Write}, net::{TcpListener, TcpStream}};
 use varint::{VarintRead, VarintWrite};
 
+fn handle_ping(stream: &mut TcpStream) {
+    let packet_length = stream.read_unsigned_varint_32().unwrap();
+    let mut buffer = vec![0u8; packet_length as usize];
+    stream.read_exact(&mut buffer).unwrap();
+    let mut cursor = Cursor::new(buffer);
+    
+    let packet_id = cursor.read_unsigned_varint_32().unwrap();
+    if packet_id != 1 { return };
+    
+    let mut payload_bytes = [0u8; 8];
+    cursor.read_exact(&mut payload_bytes).unwrap();
+    
+    let mut vector = Cursor::new(vec![0u8; 0]);
+    vector.write_unsigned_varint_32(1).unwrap();
+    vector.write(&payload_bytes).unwrap();
+    
+    let mut packet = Cursor::new(vec![0u8; 0]);
+    packet.write_unsigned_varint_32(vector.get_ref().len() as u32).unwrap();
+    packet.write(vector.get_ref()).unwrap();
+
+    stream.write_all(packet.get_ref()).unwrap();
+    stream.flush().unwrap();
+}
+
 fn handle_status(stream: &mut TcpStream) {
     let parse_json = r#"{
-        "verson": {"name": "1.21.10", "protocol": 773}, 
+        "version": {"name": "1.21.10", "protocol": 773}, 
         "players": {"max": 20, "online": 3},
         "description": {"text": "Joe Minecraft Server"}
     }"#;
@@ -12,6 +36,38 @@ fn handle_status(stream: &mut TcpStream) {
     vector.write_unsigned_varint_32(0).unwrap();
     vector.write_unsigned_varint_32(json_bytes.len() as u32).unwrap();
     vector.write(json_bytes).unwrap();
+
+    let mut packet = Cursor::new(vec![0u8; 0]);
+    packet.write_unsigned_varint_32(vector.get_ref().len() as u32).unwrap();
+    packet.write(vector.get_ref()).unwrap();
+
+    stream.write_all(packet.get_ref()).unwrap();
+    stream.flush().unwrap();
+}
+
+fn handle_login(stream: &mut TcpStream) {
+    let packet_length = stream.read_unsigned_varint_32().unwrap();
+    println!("Read VarInt: {}", packet_length);
+
+    let mut buffer = vec![0u8; packet_length as usize];
+    stream.read_exact(&mut buffer).unwrap();
+    let mut vector = Cursor::new(buffer);
+
+    let packet_id = vector.read_unsigned_varint_32().unwrap();
+    println!("Packet ID version: {}", packet_id);
+
+    let name_len = vector.read_unsigned_varint_32().unwrap() as usize;
+    let mut name_bytes = vec![0u8; name_len];
+    vector.read_exact(&mut name_bytes).unwrap();
+    let username = String::from_utf8_lossy(&name_bytes);
+    println!("Username = {}", username);
+
+    let parse_response = r#"{"text":"Don't try funny stuff script kiddie"}"#;
+    let response_bytes = parse_response.as_bytes();
+    let mut vector = Cursor::new(vec![0u8; 0]);
+    vector.write_unsigned_varint_32(0).unwrap();
+    vector.write_unsigned_varint_32(response_bytes.len() as u32).unwrap();
+    vector.write(response_bytes).unwrap();
 
     let mut packet = Cursor::new(vec![0u8; 0]);
     packet.write_unsigned_varint_32(vector.get_ref().len() as u32).unwrap();
@@ -48,7 +104,7 @@ fn handle_connection(mut stream : TcpStream) {
     let next_state = vector.read_unsigned_varint_32().unwrap();
     println!("State: {}", next_state);
     match next_state {
-        1 => handle_status(&mut stream),
+        1 => { handle_status(&mut stream); handle_ping(&mut stream); }
         2 => handle_login(&mut stream),
         _ => eprintln!("Unknown state: {}", next_state)
     }
