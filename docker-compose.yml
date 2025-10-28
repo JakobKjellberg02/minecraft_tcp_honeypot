@@ -1,0 +1,7 @@
+services:
+  minecraft-honeypot:
+    build: .
+    container_name: minecraft-honeypot
+    ports:
+      - "25565:25565"
+    restart: unless-stopped
